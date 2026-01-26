@@ -29,7 +29,7 @@
 
   <properties>
     <root.basedir>${project.parent.basedir}</root.basedir>
-    <spring-boot.version>3.5.7</spring-boot.version>
+    <spring-boot.version>4.0.2</spring-boot.version>
     <!-- We do not want to deploy the `exec` uber jar. -->
     <maven.deploy.skip>true</maven.deploy.skip>
   </properties>
