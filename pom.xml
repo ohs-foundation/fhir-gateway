@@ -60,7 +60,7 @@
   </scm>
 
   <properties>
-    <hapifhir_version>8.0.0</hapifhir_version>
+    <hapifhir_version>8.8.0</hapifhir_version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <spotless.version>3.1.0</spotless.version>
     <root.basedir>${project.basedir}</root.basedir>
