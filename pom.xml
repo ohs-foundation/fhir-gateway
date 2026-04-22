@@ -67,7 +67,7 @@
     <maven.compiler.source>11</maven.compiler.source>
     <maven.compiler.target>11</maven.compiler.target>
     <slf4j.version>2.0.17</slf4j.version>
-    <logback.version>1.5.21</logback.version>
+    <logback.version>1.5.25</logback.version>
     <license-maven-plugin.version>5.0.0</license-maven-plugin.version>
   </properties>
 
@@ -333,7 +333,7 @@
       <plugin>
         <groupId>org.sonatype.central</groupId>
         <artifactId>central-publishing-maven-plugin</artifactId>
-        <version>0.9.0</version>
+        <version>0.10.0</version>
         <extensions>true</extensions>
         <configuration>
           <publishingServerId>central</publishingServerId>
