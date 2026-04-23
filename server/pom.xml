@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 
-    Copyright 2021-2025 Google LLC
+    Copyright 2021-2026 Google LLC
 
     Licensed under the Apache License, Version 2.0 (the "License");
     you may not use this file except in compliance with the License.
@@ -70,6 +70,20 @@
       <version>${hapifhir_version}</version>
     </dependency>
 
+    <!-- This is to provide the ca.uhn.fhir.sl.cache.CacheProvider service. -->
+    <dependency>
+      <groupId>ca.uhn.hapi.fhir</groupId>
+      <artifactId>hapi-fhir-caching-caffeine</artifactId>
+      <version>${hapifhir_version}</version>
+    </dependency>
+
+    <!-- Needed to re-use Audit components -->
+    <dependency>
+      <groupId>ca.uhn.hapi.fhir</groupId>
+      <artifactId>hapi-fhir-storage</artifactId>
+      <version>${hapifhir_version}</version>
+    </dependency>
+
     <!-- Needed for JEE/Servlet support -->
     <dependency>
       <groupId>jakarta.servlet</groupId>
@@ -129,13 +143,6 @@
       <version>4.5.1</version>
     </dependency>
 
-    <!-- This is to provide the ca.uhn.fhir.sl.cache.CacheProvider service. -->
-    <dependency>
-      <groupId>ca.uhn.hapi.fhir</groupId>
-      <artifactId>hapi-fhir-caching-caffeine</artifactId>
-      <version>${hapifhir_version}</version>
-    </dependency>
-
     <!-- This is needed for the FhirPath and FHIRPathEngine of HAPI.
       This is an "optional" dependency for `hapi-fhir-structures-r4`. -->
     <dependency>
@@ -155,13 +162,6 @@
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
       <version>1.18.42</version>
-    </dependency>
-
-    <!-- Needed to re-use Audit components -->
-    <dependency>
-      <groupId>ca.uhn.hapi.fhir</groupId>
-      <artifactId>hapi-fhir-storage</artifactId>
-      <version>8.6.0</version>
     </dependency>
 
   </dependencies>
