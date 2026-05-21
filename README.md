@@ -230,3 +230,12 @@ This proxy is implemented as a
 starting from this
 [hapi-fhirstarters-simple-server](https://github.com/FirelyTeam/fhirstarters/tree/master/java/hapi-fhirstarters-simple-server)
 example.
+
+# Contributions
+This is an open-source project and we welcome contributions. Our development
+process is also open. We use GitHub issues and review processes. If you are
+working on a feature or an issue, please comment on that GitHub issue to
+communicate with other developers. It would also be great to attend our weekly
+developers' calls on Tuesdays; here are the details:
+- **When**: Tuesdays at 10 AM Eastern Time (Toronto)
+- **Where**: Virtual at https://meet.google.com/ago-nmcc-oed
