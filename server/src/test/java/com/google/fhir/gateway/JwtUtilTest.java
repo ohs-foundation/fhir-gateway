@@ -58,9 +58,9 @@ public class JwtUtilTest {
   /**
    * Regression test: the Gateway serves endpoints such as the CapabilityStatement at {@code
    * /metadata} without requiring a token, so {@link
-   * com.google.fhir.gateway.interfaces.AccessDecision#getUserWho} reaches this method with no {@code
-   * Authorization} header whenever AuditEvent logging is enabled. That used to throw a {@link
-   * NullPointerException} mid-response.
+   * com.google.fhir.gateway.interfaces.AccessDecision#getUserWho} reaches this method with no
+   * {@code Authorization} header whenever AuditEvent logging is enabled. That used to throw a
+   * {@link NullPointerException} mid-response.
    */
   @Test
   public void getDecodedJwtFromRequestDetails_returnsNullWhenNoAuthorizationHeader() {
