@@ -82,6 +82,11 @@ public interface AccessDecision {
     DecodedJWT decodedJWT;
     try {
       decodedJWT = JwtUtil.getDecodedJwtFromRequestDetails(request);
+      if (decodedJWT == null) {
+        // Unauthenticated request, e.g. the CapabilityStatement at /metadata, which the Gateway
+        // serves without a token. There is no actor to attribute an AuditEvent to.
+        return null;
+      }
       String name =
           JwtUtil.getClaimOrDefault(
               decodedJWT,
