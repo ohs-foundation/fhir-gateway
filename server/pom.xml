@@ -34,7 +34,7 @@
     <root.basedir>${project.parent.basedir}</root.basedir>
     <!-- This is chosen based on the Spring Boot version used in exec module.
       Note this module should have no Spring Boot dependency. -->
-    <spring.version>7.0.2</spring.version>
+    <spring.version>7.0.8</spring.version>
     <!-- We should keep this consistent with Spring's Jakarta dep as well. -->
     <jakarta-servlet.version>6.1.0</jakarta-servlet.version>
     <!-- TODO check version compatibility with HAPI and Spring! -->
@@ -155,13 +155,13 @@
     <dependency>
       <groupId>com.google.code.gson</groupId>
       <artifactId>gson</artifactId>
-      <version>2.13.2</version>
+      <version>2.14.0</version>
     </dependency>
 
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
-      <version>1.18.42</version>
+      <version>1.18.46</version>
     </dependency>
 
   </dependencies>
