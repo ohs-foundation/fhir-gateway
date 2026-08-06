@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2025 Google LLC
+ * Copyright 2021-2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -82,6 +82,11 @@ public interface AccessDecision {
     DecodedJWT decodedJWT;
     try {
       decodedJWT = JwtUtil.getDecodedJwtFromRequestDetails(request);
+      if (decodedJWT == null) {
+        // Unauthenticated request, e.g. the CapabilityStatement at /metadata, which the Gateway
+        // serves without a token. There is no actor to attribute an AuditEvent to.
+        return null;
+      }
       String name =
           JwtUtil.getClaimOrDefault(
               decodedJWT,

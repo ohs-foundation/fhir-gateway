@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2025 Google LLC
+ * Copyright 2021-2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import com.auth0.jwt.exceptions.JWTDecodeException;
 import com.auth0.jwt.interfaces.Claim;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.google.fhir.gateway.interfaces.RequestDetailsReader;
+import javax.annotation.Nullable;
 import org.apache.http.HttpHeaders;
 
 public class JwtUtil {
@@ -51,9 +52,24 @@ public class JwtUtil {
     return claim;
   }
 
+  /**
+   * Decodes the JWT carried in the {@code Authorization} header of the given request. The signature
+   * is not verified here; see {@link TokenVerifier}.
+   *
+   * @param requestDetails the request to read the header from; may be null
+   * @return the decoded JWT, or null if {@code requestDetails} is null, the request carries no
+   *     {@code Authorization} header, or that header does not use the {@code Bearer} scheme. A
+   *     missing header is not an error: the Gateway serves some endpoints, such as the
+   *     CapabilityStatement at {@code /metadata}, without requiring a token. Callers must handle a
+   *     null return.
+   */
+  @Nullable
   public static DecodedJWT getDecodedJwtFromRequestDetails(RequestDetailsReader requestDetails) {
     if (requestDetails == null) return null;
     String authHeader = requestDetails.getHeader(HttpHeaders.AUTHORIZATION);
+    if (authHeader == null || !authHeader.startsWith(TokenVerifier.BEARER_PREFIX)) {
+      return null;
+    }
     String bearerToken = authHeader.substring(TokenVerifier.BEARER_PREFIX.length());
     return JWT.decode(bearerToken);
   }
