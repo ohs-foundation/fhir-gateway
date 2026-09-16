@@ -14,23 +14,18 @@
 # limitations under the License.
 #
 
-# This is for easy creation and setup of a FHIR Proxy and HAPI FHIR Server
+# A Gateway with TWO FHIR servers: the clinical store it proxies, and a separate
+# store that AuditEvents are written to. Use this to verify that audit and
+# clinical data really are detached.
 #
-# The relevant environment variables are (see `env.sample` for default values;
-# copy it to `.env` first: `cp docker/env.sample docker/.env`):
+#   cp docker/env.sample docker/.env   # once; see docker/README.md
+#   docker compose -f docker/detached-audit-compose.yaml up
 #
-# TOKEN_ISSUER: URL of the Identity Provider server;
-#  default: "http://localhost:9080/auth/realms/test"
+# Clinical store: http://localhost:8099/fhir   (proxied; AuditEvent count must stay flat)
+# Audit store:    http://localhost:8098/fhir   (AuditEvent count must rise)
 #
-# PROXY_TO: URL of the FHIR backend the proxy connects to;
-#   default: "http://localhost:8099/fhir"
-#
-# BACKEND_TYPE: the FHIR backend type. Either GCP or HAPI; default: "HAPI"
-#
-# ACCESS_CHECKER: access checker to use when running the proxy; default: "list"
-#
-# RUN_MODE: Enforces proxy's token issuer check when set to "PROD". To bypass
-#   the check, set to "DEV"; default: "PROD"
+# Note both stores are plain http here. That is accepted only because PROXY_TO is
+# also plain http; the Gateway refuses an http audit store when PROXY_TO is https.
 
 version: "3.0"
 
@@ -44,9 +39,9 @@ services:
     - ACCESS_CHECKER
     - RUN_MODE
     - ALLOWED_QUERIES_FILE
-    - AUDIT_EVENT_ACTIONS_CONFIG
-    - AUDIT_EVENT_SINK_URL
-    - AUDIT_EVENT_SINK_AUTH_TYPE
+    - AUDIT_EVENT_ACTIONS_CONFIG=${AUDIT_EVENT_ACTIONS_CONFIG:-CRUDE}
+    - AUDIT_EVENT_SINK_URL=${AUDIT_EVENT_SINK_URL:-http://localhost:8098/fhir}
+    - AUDIT_EVENT_SINK_AUTH_TYPE=${AUDIT_EVENT_SINK_AUTH_TYPE:-none}
     network_mode: "host"
     healthcheck:
       # As hapi-server does not support curl, we check here that the
@@ -61,3 +56,8 @@ services:
     image: us-docker.pkg.dev/fhir-proxy-build/stable/hapi-synthea:small
     ports:
     - "8099:8080"
+
+  hapi-audit-server:
+    image: us-docker.pkg.dev/fhir-proxy-build/stable/hapi-synthea:small
+    ports:
+    - "8098:8080"

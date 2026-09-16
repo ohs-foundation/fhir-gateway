@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2025 Google LLC
+ * Copyright 2021-2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ import com.google.fhir.gateway.interfaces.AccessCheckerFactory;
 import com.google.fhir.gateway.interfaces.AccessDecision;
 import com.google.fhir.gateway.interfaces.RequestDetailsReader;
 import com.google.fhir.gateway.interfaces.RequestMutation;
+import jakarta.annotation.Nullable;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
@@ -76,12 +77,14 @@ public class BearerAuthorizationInterceptor {
   private final TokenVerifier tokenVerifier;
   private final RestfulServer server;
   private final HttpFhirClient fhirClient;
+  private final HttpFhirClient auditFhirClient;
   private final AccessCheckerFactory accessFactory;
   private final AllowedQueriesChecker allowedQueriesChecker;
   private final Set<String> auditEventActionsConfigSet;
 
   BearerAuthorizationInterceptor(
       HttpFhirClient fhirClient,
+      HttpFhirClient auditFhirClient,
       TokenVerifier tokenVerifier,
       RestfulServer server,
       AccessCheckerFactory accessFactory,
@@ -89,14 +92,26 @@ public class BearerAuthorizationInterceptor {
       Set<String> auditEventActionsConfigSet)
       throws IOException {
     Preconditions.checkNotNull(fhirClient);
+    Preconditions.checkNotNull(auditFhirClient);
     Preconditions.checkNotNull(server);
     this.server = server;
     this.fhirClient = fhirClient;
+    this.auditFhirClient = auditFhirClient;
     this.tokenVerifier = tokenVerifier;
     this.accessFactory = accessFactory;
     this.allowedQueriesChecker = allowedQueriesChecker;
     this.auditEventActionsConfigSet = auditEventActionsConfigSet;
+    // Set once here rather than per request: this mutates the process-wide cached R4 context, and
+    // it is what preserves `_history` in AuditEvent.entity.what when the AuditEvent is encoded.
+    // FhirProxyServer.initialize() does the same; this covers callers that construct the
+    // interceptor directly, e.g. tests.
+    FhirContext.forR4Cached()
+        .getParserOptions()
+        .setDontStripVersionsFromReferencesAtPaths("AuditEvent.entity.what");
     logger.info("Created proxy to the FHIR store " + this.fhirClient.getBaseUrl());
+    if (!auditEventActionsConfigSet.isEmpty()) {
+      logger.info("AuditEvents are written to " + this.auditFhirClient.getBaseUrl());
+    }
   }
 
   private AuthorizationDto checkAuthorization(RequestDetails requestDetails) {
@@ -218,32 +233,23 @@ public class BearerAuthorizationInterceptor {
       if (!auditEventActionsConfigSet.isEmpty()) {
         Reference agentUserWho = outcome.getUserWho(requestDetailsReader);
         if (agentUserWho != null) {
-
-          FhirContext.forR4Cached()
-              .getParserOptions()
-              .setDontStripVersionsFromReferencesAtPaths("AuditEvent.entity.what");
-
+          // Auditing needs the whole response body, so buffer it. An IOException here is a genuine
+          // failure to read the FHIR store's response and is handled by the catch below.
           StringWriter responseStringWriter = new StringWriter();
           reader.transferTo(responseStringWriter);
           String responseStringContent = responseStringWriter.toString();
 
-          Header contentLocationHeader = response.getFirstHeader(CONTENT_LOCATION_HEADER);
-
-          AuditEventHelper auditEventHelper =
-              new AuditEventHelper(
-                  requestDetailsReader,
-                  responseStringContent,
-                  contentLocationHeader != null ? contentLocationHeader.getValue() : null,
-                  agentUserWho,
-                  authorizationDto.getDecodedJWT(),
-                  periodStartTime,
-                  fhirClient,
-                  server.getFhirContext(),
-                  auditEventActionsConfigSet);
-
-          auditEventHelper.processAuditEvents();
-
+          // Restore the reader before any audit work is attempted, so that what the client gets
+          // back cannot depend on whether auditing succeeds.
           reader = new StringReader(responseStringContent);
+
+          processAuditEvents(
+              requestDetailsReader,
+              responseStringContent,
+              response.getFirstHeader(CONTENT_LOCATION_HEADER),
+              agentUserWho,
+              authorizationDto.getDecodedJWT(),
+              periodStartTime);
         }
       }
 
@@ -260,6 +266,44 @@ public class BearerAuthorizationInterceptor {
 
     // The request processing stops here, hence returning false.
     return false;
+  }
+
+  /**
+   * Generates this request's AuditEvents and writes them to the audit FHIR store.
+   *
+   * <p>Note this runs after a successful fetch/update of the FHIR store, so that success must be
+   * passed to the client even if auditing fails; every failure here is logged and swallowed. The
+   * caller has already restored the response reader, hence nothing this method does can affect the
+   * response body.
+   */
+  private void processAuditEvents(
+      RequestDetailsReader requestDetailsReader,
+      String responseContent,
+      @Nullable Header contentLocationHeader,
+      Reference agentUserWho,
+      @Nullable DecodedJWT decodedJWT,
+      Date periodStartTime) {
+    try {
+      AuditEventHelper auditEventHelper =
+          new AuditEventHelper(
+              requestDetailsReader,
+              responseContent,
+              contentLocationHeader != null ? contentLocationHeader.getValue() : null,
+              agentUserWho,
+              decodedJWT,
+              periodStartTime,
+              fhirClient.getBaseUrl(),
+              auditFhirClient,
+              server.getFhirContext(),
+              auditEventActionsConfigSet);
+      auditEventHelper.processAuditEvents();
+    } catch (Exception e) {
+      logger.error(
+          "Exception while processing AuditEvents for {} {}",
+          requestDetailsReader.getRequestType(),
+          requestDetailsReader.getRequestPath(),
+          e);
+    }
   }
 
   private boolean sendGzippedResponse(ServletRequestDetails requestDetails) {
