@@ -117,6 +117,25 @@ The configuration parameters are provided through environment variables:
   any other character is set other than the predefined values, the server will
   fail to start.
 
+- `AUDIT_EVENT_SINK_URL`: The base URL of a separate FHIR store to write
+  AuditEvents to, e.g. `https://audit-store.example/fhir`. When this is not set,
+  AuditEvents are written to the store named by `PROXY_TO`, mixing audit and
+  clinical data in one store. Requires `AUDIT_EVENT_ACTIONS_CONFIG` to be set as
+  well; it is the master on/off switch for auditing.
+
+- `AUDIT_EVENT_SINK_AUTH_TYPE`: How the Gateway authenticates to the store named
+  by `AUDIT_EVENT_SINK_URL`; either `inherit`, to reuse the credentials it
+  already uses for `PROXY_TO`, or `none`, to send no credentials. It must be set
+  explicitly whenever `AUDIT_EVENT_SINK_URL` is on a different origin than
+  `PROXY_TO`, because neither default is safe there: `inherit` would silently
+  forward the clinical store's credentials to a different host, and `none` would
+  silently produce 401s and lose every audit record.
+
+  With `BACKEND_TYPE=GCP`, `inherit` forwards a Google OAuth access token scoped
+  to `cloud-platform`. Only use it when the audit store is another Google
+  Healthcare FHIR store in the same trust domain; pointing it at a third-party
+  collector hands that party a usable Google credential.
+
   For more information on audit event logging, see
   [section on AuditEvent logging](#auditevent-logging).
 
@@ -235,7 +254,8 @@ AuditEvent logging with these key features:
   request processed by the Gateway, leveraging both request and response data.
 - Adheres to the Basic Audit Logging Profiles (BALP) IG minimal audit patterns
   ([https://profiles.ihe.net/ITI/BALP/index.html](https://profiles.ihe.net/ITI/BALP/index.html)).
-- Stores AuditEvents on the same server as other data.
+- Writes AuditEvents to the FHIR store named by `AUDIT_EVENT_SINK_URL`, or to
+  the same server as other data when that is not set.
 
 **Flexible Configuration:**
 

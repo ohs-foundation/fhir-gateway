@@ -17,9 +17,12 @@ your environment.
 1. Clone the
    [FHIR Info Gateway repo from GitHub](https://github.com/google/fhir-gateway).
 2. Open a terminal window and `cd` to the directory where you cloned the repo.
-3. Bring up the sample Keycloak service using `docker compose`.
+3. Bring up the sample Keycloak service using `docker compose`. Its settings are
+   read from `docker/keycloak/.env`, which is not under version control, so
+   create it from the provided sample first.
 
    ```shell
+   cp docker/keycloak/env.sample docker/keycloak/.env
    docker compose -f docker/keycloak/config-compose.yaml up
    ```
 

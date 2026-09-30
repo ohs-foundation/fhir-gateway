@@ -7,6 +7,26 @@ a HAPI FHIR Server with synthetic data pre-loaded (more details below).
 Keycloak instance that can support both a list based access control and a
 single-patient based SMART-on-FHIR app (in two separate realms).
 
+## Environment files
+
+The compose files are configured through environment variables which Docker
+Compose reads from a `.env` file in the same directory as the compose file.
+These `.env` files are **not** under version control, so they can hold values
+specific to your machine or deployment. Instead, each directory has a tracked
+`env.sample` with working defaults. Before running a compose file for the first
+time, copy the sample and adjust the values as needed:
+
+```shell
+cp docker/env.sample docker/.env
+cp docker/keycloak/env.sample docker/keycloak/.env
+```
+
+Without these files, the compose files start with empty values (e.g., no
+`PROXY_TO`) and fail. Never put real secrets in `env.sample`; `.env` files are
+also excluded from Docker build contexts through `.dockerignore`. Note the
+[e2e test script](../e2e-test/e2e.sh) creates any missing `.env` files from the
+samples automatically.
+
 ## Pre-loaded HAPI Server
 
 The

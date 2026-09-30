@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2025 Google LLC
+ * Copyright 2021-2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import org.apache.http.HttpResponse;
+import org.apache.http.util.EntityUtils;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.r4.model.AuditEvent;
 import org.hl7.fhir.r4.model.Bundle;
@@ -60,19 +61,37 @@ import org.slf4j.LoggerFactory;
 public class AuditEventHelper {
 
   private static final Logger logger = LoggerFactory.getLogger(AuditEventHelper.class);
+
+  /**
+   * A dedicated logger for AuditEvents that could not be written, so that deployments can route and
+   * alert on audit loss without grepping the general application log.
+   */
+  private static final Logger auditDeliveryLogger =
+      LoggerFactory.getLogger("com.google.fhir.gateway.AUDIT_DELIVERY_FAILURE");
+
   private final PatientFinderImp patientFinder;
   private final RequestDetailsReader requestDetailsReader;
   private final String responseContentLocation;
   private final Reference agentUserWho;
   private final DecodedJWT decodedJWT;
   private final Date periodStartTime;
-  private final HttpFhirClient httpFhirClient;
+  private final String fhirServerBaseUrl;
+  private final HttpFhirClient auditFhirClient;
   private final FhirContext fhirContext;
   @Nullable private final IBaseResource requestResource;
   @Nullable private final IBaseResource responseResource;
   @Nullable private final IBaseResource contentLocationResponseResource;
   private final Set<String> auditEventActionsConfigSet;
 
+  /**
+   * Note {@code fhirServerBaseUrl} and {@code auditFhirClient} are two different FHIR stores when a
+   * separate AuditEvent store is configured, and it matters which is used where.
+   *
+   * @param fhirServerBaseUrl the base URL of the proxied (clinical) FHIR store the audited data was
+   *     read from or written to. Under BALP this goes <em>inside</em> the AuditEvent, as the
+   *     destination agent; it is not where the AuditEvent is filed.
+   * @param auditFhirClient the client used to write the generated AuditEvents.
+   */
   public AuditEventHelper(
       RequestDetailsReader requestDetailsReader,
       String responseContent,
@@ -80,7 +99,8 @@ public class AuditEventHelper {
       Reference agentUserWho,
       @Nullable DecodedJWT decodedJWT,
       Date periodStartTime,
-      HttpFhirClient httpFhirClient,
+      String fhirServerBaseUrl,
+      HttpFhirClient auditFhirClient,
       FhirContext fhirContext,
       Set<String> auditEventActionsConfigSet) {
     this.patientFinder = PatientFinderImp.getInstance(fhirContext);
@@ -89,7 +109,8 @@ public class AuditEventHelper {
     this.agentUserWho = agentUserWho;
     this.decodedJWT = decodedJWT;
     this.periodStartTime = periodStartTime;
-    this.httpFhirClient = httpFhirClient;
+    this.fhirServerBaseUrl = fhirServerBaseUrl;
+    this.auditFhirClient = auditFhirClient;
     this.fhirContext = fhirContext;
     this.auditEventActionsConfigSet = auditEventActionsConfigSet;
 
@@ -174,13 +195,58 @@ public class AuditEventHelper {
     // probably need a mechanism for chunking e.g. 100, 200, or 500 batch
     for (AuditEvent auditEvent : auditEventList) {
       auditEvent.getPeriod().setEnd(new Date());
-      try {
-        HttpResponse response = this.httpFhirClient.postResource(auditEvent);
-        handleErrorResponse(response);
-      } catch (IOException exception) {
-        ExceptionUtil.throwRuntimeExceptionAndLog(logger, exception.getMessage(), exception);
+      writeAuditEvent(auditEvent);
+    }
+  }
+
+  /**
+   * Writes a single AuditEvent to the audit FHIR store. This runs after the audited FHIR store
+   * operation has already committed, so a failure here must never be thrown at the caller: doing so
+   * would report a successful clinical operation, for example a DELETE, as a 500. Failures are
+   * logged through {@link #auditDeliveryLogger} instead.
+   */
+  private void writeAuditEvent(AuditEvent auditEvent) {
+    HttpResponse response = null;
+    try {
+      response = this.auditFhirClient.postResource(auditEvent);
+      if (response != null && !HttpUtil.isResponseValid(response)) {
+        auditDeliveryLogger.error(
+            "Failed to write an AuditEvent to {} for request {}; status {}{}",
+            this.auditFhirClient.getBaseUrl(),
+            this.requestDetailsReader.getRequestId(),
+            response.getStatusLine(),
+            describeFailure(response));
+      }
+    } catch (IOException | RuntimeException exception) {
+      auditDeliveryLogger.error(
+          "Failed to write an AuditEvent to {} for request {}",
+          this.auditFhirClient.getBaseUrl(),
+          this.requestDetailsReader.getRequestId(),
+          exception);
+    } finally {
+      if (response != null) {
+        EntityUtils.consumeQuietly(response.getEntity());
       }
     }
+  }
+
+  /** Returns the diagnostics of a failed response as a loggable suffix, or "" if there are none. */
+  private String describeFailure(HttpResponse response) {
+    if (response.getEntity() == null) {
+      return "";
+    }
+    StringWriter responseStringWriter = new StringWriter();
+    try (Reader reader = HttpUtil.readerFromEntity(response.getEntity())) {
+      reader.transferTo(responseStringWriter);
+    } catch (IOException exception) {
+      return "";
+    }
+    IBaseResource resource =
+        FhirUtil.parseResourceOrNull(this.fhirContext, responseStringWriter.toString());
+    if (!(resource instanceof OperationOutcome)) {
+      return "";
+    }
+    return "; " + ((OperationOutcome) resource).getIssueFirstRep().getDiagnostics();
   }
 
   private @Nonnull List<AuditEvent> generateAuditEventsByRestOperationType(
@@ -340,21 +406,6 @@ public class AuditEventHelper {
     }
 
     return auditEventList;
-  }
-
-  private void handleErrorResponse(org.apache.http.HttpResponse response) throws IOException {
-    if (response != null && !HttpUtil.isResponseValid(response)) {
-      StringWriter responseStringWriter = new StringWriter();
-      try (Reader reader = HttpUtil.readerFromEntity(response.getEntity())) {
-        reader.transferTo(responseStringWriter);
-        OperationOutcome outcome =
-            (OperationOutcome)
-                FhirUtil.parseResourceOrNull(this.fhirContext, responseStringWriter.toString());
-        if (outcome != null)
-          ExceptionUtil.throwRuntimeExceptionAndLog(
-              logger, outcome.getIssueFirstRep().getDiagnostics());
-      }
-    }
   }
 
   private String getResourceTemplate(String resourceType, String resourceId) {
@@ -557,7 +608,7 @@ public class AuditEventHelper {
     auditEventBuilder.agentSourceTypeCoding(balpProfile.getAgentClientTypeCoding());
     auditEventBuilder.agentDestinationTypeCoding(balpProfile.getAgentServerTypeCoding());
     auditEventBuilder.profileUrl(balpProfile.getProfileUrl());
-    auditEventBuilder.fhirServerBaseUrl(this.httpFhirClient.getBaseUrl());
+    auditEventBuilder.fhirServerBaseUrl(this.fhirServerBaseUrl);
     auditEventBuilder.gatewayServerBaseUrl(this.requestDetailsReader.getFhirServerBase());
     auditEventBuilder.requestId(this.requestDetailsReader.getRequestId());
     auditEventBuilder.network(
