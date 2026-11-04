@@ -1,5 +1,5 @@
 #
-# Copyright 2021-2022 Google LLC
+# Copyright 2021-2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,8 @@
 # be used in production.
 #
 # The relevant environment variables are (see `keycloak_setup.sh` for details
-# and `.env` file for default values):
+# and `env.sample` for default values; copy it to `.env` first:
+# `cp docker/keycloak/env.sample docker/keycloak/.env`):
 #
 # HTTP_PORT: the port on the host machine mapped to Keycloak's http port;
 #  default: 9080

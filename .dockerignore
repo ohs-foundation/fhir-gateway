@@ -1,0 +1,4 @@
+# Local environment files may hold credentials; never send them to the Docker
+# build context (or bake them into an image).
+**/.env
+**/.env.*

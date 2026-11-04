@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2025 Google LLC
+ * Copyright 2021-2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,6 +81,10 @@ public class FhirProxyServer extends RestfulServer {
       logger.info("Adding BearerAuthorizationInterceptor ");
       AccessCheckerFactory checkerFactory = chooseAccessCheckerFactory();
       HttpFhirClient httpFhirClient = FhirClientFactory.createFhirClientFromEnvVars();
+      // This is the same instance as `httpFhirClient` unless a separate AuditEvent store is
+      // configured; see FhirClientFactory#createAuditFhirClientFromEnvVars.
+      HttpFhirClient auditFhirClient =
+          FhirClientFactory.createAuditFhirClientFromEnvVars(httpFhirClient);
       TokenVerifier tokenVerifier = TokenVerifier.createFromEnvVars();
 
       String auditEventActionsConfig = System.getenv(AUDIT_EVENT_ACTIONS_CONFIG);
@@ -99,6 +103,7 @@ public class FhirProxyServer extends RestfulServer {
       registerInterceptor(
           new BearerAuthorizationInterceptor(
               httpFhirClient,
+              auditFhirClient,
               tokenVerifier,
               this,
               checkerFactory,

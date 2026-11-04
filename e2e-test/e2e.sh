@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2021-2025 Google LLC
+# Copyright 2021-2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,18 @@ set -e
 
 export BUILD_ID=${KOKORO_BUILD_ID:-local}
 
+# Docker Compose reads `.env` next to each compose file; these are not under
+# version control, so create them from the tracked samples when missing.
+function create_env_files() {
+  for dir in docker docker/keycloak; do
+    if [[ ! -f "${dir}/.env" ]]; then
+      cp "${dir}/env.sample" "${dir}/.env"
+    fi
+  done
+}
+
 function setup() {
+  create_env_files
   docker build -t us-docker.pkg.dev/fhir-proxy-build/stable/fhir-gateway:${BUILD_ID} .
   docker-compose -f docker/keycloak/config-compose.yaml \
                  up --force-recreate --remove-orphans -d --quiet-pull

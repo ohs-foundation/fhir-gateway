@@ -21,3 +21,7 @@ __pycache__/
 
 # MacOS
 .DS_Store
+
+# Local environment files; copy the tracked `env.sample` next to each instead.
+.env
+.env.*

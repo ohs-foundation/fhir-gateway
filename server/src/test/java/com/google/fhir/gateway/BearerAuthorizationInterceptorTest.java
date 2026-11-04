@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2025 Google LLC
+ * Copyright 2021-2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,8 +110,19 @@ public class BearerAuthorizationInterceptorTest {
   private BearerAuthorizationInterceptor createTestInstance(
       boolean isAccessGranted, String allowedQueriesConfig, boolean isEventLoggingEnabled)
       throws IOException {
+    return createTestInstance(
+        isAccessGranted, allowedQueriesConfig, isEventLoggingEnabled, fhirClientMock);
+  }
+
+  private BearerAuthorizationInterceptor createTestInstance(
+      boolean isAccessGranted,
+      String allowedQueriesConfig,
+      boolean isEventLoggingEnabled,
+      HttpFhirClient auditFhirClient)
+      throws IOException {
     return new BearerAuthorizationInterceptor(
         fhirClientMock,
+        auditFhirClient,
         tokenVerifierMock,
         serverMock,
         (jwt, httpFhirClient, fhirContext, patientFinder) ->
@@ -249,6 +260,70 @@ public class BearerAuthorizationInterceptorTest {
     assertThat(
         auditEvent.getSource().getObserver().getDisplay(),
         equalTo("http://my-gateway-server/fhir"));
+  }
+
+  /**
+   * The AuditEvent is written to a separate store, but under BALP its destination agent must still
+   * name the clinical store the data was actually read from.
+   */
+  @Test
+  public void auditEventDestinationAgentIsTheClinicalStore() throws IOException {
+    HttpFhirClient separateAuditClient = Mockito.mock(HttpFhirClient.class);
+    setUpAuditEventLoggingRequest();
+
+    BearerAuthorizationInterceptor testInstance =
+        createTestInstance(true, null, true, separateAuditClient);
+    testInstance.authorizeRequest(requestMock);
+
+    ArgumentCaptor<AuditEvent> auditEventArgumentCaptor = ArgumentCaptor.forClass(AuditEvent.class);
+    Mockito.verify(separateAuditClient).postResource(auditEventArgumentCaptor.capture());
+    Mockito.verify(fhirClientMock, Mockito.never()).postResource(Mockito.any());
+
+    // Agents are added in a fixed order by AuditEventBuilder; index 2 is the destination agent.
+    AuditEvent.AuditEventAgentComponent destinationAgent =
+        auditEventArgumentCaptor.getValue().getAgent().get(2);
+    assertThat(destinationAgent.getWho().getDisplay(), equalTo(FHIR_STORE));
+    assertThat(destinationAgent.getNetwork().getAddress(), equalTo(FHIR_STORE));
+  }
+
+  /**
+   * The audited operation has already committed by the time AuditEvents are written, so a failure
+   * to write them must never change what the client receives.
+   */
+  @Test
+  public void auditWriteFailureDoesNotAffectResponse() throws IOException {
+    HttpFhirClient failingAuditClient = Mockito.mock(HttpFhirClient.class);
+    when(failingAuditClient.postResource(Mockito.any()))
+        .thenThrow(new IOException("audit store is unreachable"));
+    String testPatientJson = setUpAuditEventLoggingRequest();
+
+    BearerAuthorizationInterceptor testInstance =
+        createTestInstance(true, null, true, failingAuditClient);
+    testInstance.authorizeRequest(requestMock);
+
+    assertThat(testPatientJson, equalTo(writerStub.toString()));
+  }
+
+  /** Sets up a GET Patient request with a decodable bearer token, i.e. one that is audited. */
+  private String setUpAuditEventLoggingRequest() throws IOException {
+    URL patientUrl = Resources.getResource("test_patient.json");
+    String testPatientJson = Resources.toString(patientUrl, StandardCharsets.UTF_8);
+    setupFhirResponse(testPatientJson, false);
+
+    String testAccessTokenPayload =
+        "{\n"
+            + "  \"sub\": \"test-user-123\","
+            + "  \"name\": \"John Doe\","
+            + "  \"issuer\": \"http://my-iam-server/realms/gateway-audit\""
+            + "}";
+    when(requestMock.getHeader(HttpHeaders.AUTHORIZATION))
+        .thenReturn("Bearer " + TestUtil.createTestAccessToken(testAccessTokenPayload));
+    when(requestMock.getRequestType()).thenReturn(RequestTypeEnum.GET);
+    when(requestMock.getId()).thenReturn(new IdType("be92a43f-de46-affa-b131-bbf9eea51140"));
+    when(requestMock.getFhirServerBase()).thenReturn("http://my-gateway-server/fhir");
+    when(requestMock.getServletRequest()).thenReturn(httpServletRequest);
+    when(requestMock.loadRequestContents()).thenReturn(new byte[] {});
+    return testPatientJson;
   }
 
   @Test
