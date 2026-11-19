@@ -30,20 +30,58 @@ set -e
 # in the job configuration.
 
 function setup() {
-  # Resize partition from 100 GB to max
-  sudo apt -y install cloud-guest-utils
-  sudo growpart /dev/sda 1
-  sudo resize2fs /dev/sda1
-
   # Install Docker-Compose v2
   sudo curl -L "https://github.com/docker/compose/releases/download/v2.5.0/docker-compose-$(uname -s)-$(uname -m)" \
     -o /usr/local/bin/docker-compose
   sudo chmod +x /usr/local/bin/docker-compose
 
   # Update gcloud components
-  gcloud components update
+  gcloud components update --quiet
+
+  # Configure sibling-container Docker builds and localhost port forwarding on Kokoro Instances (RBE).
+  if [[ -n "${KOKORO_HOST_ROOT_DIR:-}" ]]; then
+    export DOCKER_BUILDKIT=0
+    if [[ -f /var/cache/proxy.crt ]]; then
+      docker pull maven:3.8.7-eclipse-temurin-17-focal
+      local proxy_dir
+      proxy_dir="$(mktemp -d)"
+      cp /var/cache/proxy.crt "${proxy_dir}/proxy.crt"
+      if [[ -f /var/cache/proxy.crt.jks ]]; then
+        cp /var/cache/proxy.crt.jks "${proxy_dir}/proxy.crt.jks"
+      fi
+      cat <<'EOF' > "${proxy_dir}/Dockerfile"
+FROM maven:3.8.7-eclipse-temurin-17-focal
+COPY proxy.crt* /var/cache/
+ENV SSL_CERT_FILE=/var/cache/proxy.crt
+ENV CURL_CA_BUNDLE=/var/cache/proxy.crt
+ENV NODE_EXTRA_CA_CERTS=/var/cache/proxy.crt
+ENV NPM_CONFIG_CAFILE=/var/cache/proxy.crt
+ENV JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=/var/cache/proxy.crt.jks"
+EOF
+      DOCKER_BUILDKIT=0 docker build -t maven:3.8.7-eclipse-temurin-17-focal "${proxy_dir}"
+      rm -rf "${proxy_dir}"
+    fi
+
+    python3 -c "import requests" 2>/dev/null || pip3 install --no-cache-dir requests
+    sudo apt-get update && sudo apt-get install -y socat
+    local host_ip
+    host_ip="$(ip route show default | awk '/default/ {print $3; exit}')"
+    if [[ -n "${host_ip}" ]]; then
+      export NO_PROXY="localhost,127.0.0.1,${host_ip}"
+      export no_proxy="${NO_PROXY}"
+      for port in 8080 8099 9080; do
+        socat "TCP-LISTEN:${port},fork,reuseaddr,bind=127.0.0.1" "TCP:${host_ip}:${port}" &
+      done
+    fi
+  fi
 }
 
 setup
 cd "${KOKORO_ARTIFACTS_DIR}/github/fhir-gateway"
-./build.sh
+if [[ "${KOKORO_JOB_TYPE:-}" == PRESUBMIT* || "${KOKORO_JOB_NAME:-}" == *-test/* ]]; then
+  export BUILD_ID=${KOKORO_BUILD_ID:-local}
+  gcloud auth configure-docker us-docker.pkg.dev --quiet
+  ./e2e-test/e2e.sh
+else
+  ./build.sh
+fi
