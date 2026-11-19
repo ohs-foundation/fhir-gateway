@@ -23,7 +23,7 @@ from typing import List, Tuple, Dict, Any
 import clients
 
 from clients import read_file, extract_date_only
-from datetime import date
+from datetime import date, timezone
 
 def test_proxy_and_server_equal_count(
     patient_list: List[str],
@@ -265,9 +265,9 @@ def _assert_audit_events(expected_audit_event: Dict[str, Any],
                     raise AssertionError(
                         "Reference '{}' does not contain version id:\n".format(expected_entity_resource_ref)
                     )
-                                 
+                                   
             elif field == "recorded":
-                expected_value = date.today().strftime('%Y-%m-%d')
+                expected_value = datetime.now(timezone.utc).date().strftime('%Y-%m-%d')
 
                 logging.info("Raw actual {}".format(actual_value))
                 actual_value = extract_date_only(actual_value)
