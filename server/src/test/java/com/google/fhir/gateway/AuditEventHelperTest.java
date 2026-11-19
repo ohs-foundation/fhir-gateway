@@ -1,5 +1,5 @@
 /*
- * Copyright 2021-2025 Google LLC
+ * Copyright 2021-2026 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package com.google.fhir.gateway;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -36,6 +37,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.http.HttpResponse;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.r4.model.AuditEvent;
 import org.hl7.fhir.r4.model.Bundle;
@@ -51,8 +53,10 @@ import org.hl7.fhir.r4.model.codesystems.V3ParticipationType;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -60,7 +64,7 @@ public class AuditEventHelperTest {
 
   private static final FhirContext fhirContext = FhirContext.forR4();
 
-  @Mock private HttpFhirClient fhirClientMock;
+  @Mock private HttpFhirClient auditFhirClientMock;
 
   @Mock private DecodedJWT decodedJWT;
 
@@ -84,7 +88,6 @@ public class AuditEventHelperTest {
     when(claim.asString()).thenReturn("some-value");
     when(decodedJWT.getClaim(anyString())).thenReturn(claim);
     when(requestDetailsReader.getFhirServerBase()).thenReturn(FHIR_INFO_GATEWAY_SERVER_BASE_URL);
-    when(fhirClientMock.getBaseUrl()).thenReturn(FHIR_SERVER_BASE_URL);
     when(requestDetailsReader.getRequestId()).thenReturn(TEST_REQUEST_ID);
   }
 
@@ -105,7 +108,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -136,7 +139,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -166,7 +169,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -196,7 +199,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -233,7 +236,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -263,7 +266,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -293,7 +296,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -323,7 +326,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -359,7 +362,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -385,7 +388,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -411,7 +414,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -437,7 +440,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -470,7 +473,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -500,7 +503,8 @@ public class AuditEventHelperTest {
             agentUserWho,
             decodedJWT,
             new Date(),
-            fhirClientMock,
+            FHIR_SERVER_BASE_URL,
+            auditFhirClientMock,
             fhirContext,
             Set.of(
                 AuditEvent.AuditEventAction.C.toCode(),
@@ -513,7 +517,7 @@ public class AuditEventHelperTest {
 
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
-    verify(fhirClientMock).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock).postResource(payloadResourceCaptor.capture());
 
     IBaseResource resource = payloadResourceCaptor.getValue();
     assertThat(resource instanceof AuditEvent, is(true));
@@ -601,7 +605,7 @@ public class AuditEventHelperTest {
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
 
-    verify(fhirClientMock, times(4)).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock, times(4)).postResource(payloadResourceCaptor.capture());
 
     List<IBaseResource> resources = payloadResourceCaptor.getAllValues();
 
@@ -700,7 +704,7 @@ public class AuditEventHelperTest {
     ArgumentCaptor<IBaseResource> payloadResourceCaptor =
         ArgumentCaptor.forClass(IBaseResource.class);
 
-    verify(fhirClientMock, times(2)).postResource(payloadResourceCaptor.capture());
+    verify(auditFhirClientMock, times(2)).postResource(payloadResourceCaptor.capture());
 
     List<IBaseResource> resources = payloadResourceCaptor.getAllValues();
 
@@ -954,6 +958,51 @@ public class AuditEventHelperTest {
     return null;
   }
 
+  /**
+   * The audited operation has already committed by the time AuditEvents are written, so a delivery
+   * failure must be logged rather than thrown; throwing would report a successful clinical
+   * operation to the client as a 500.
+   */
+  @Test
+  public void testProcessAuditEventsSwallowsDeliveryIOException() throws IOException {
+    when(auditFhirClientMock.postResource(any()))
+        .thenThrow(new IOException("the audit store is unreachable"));
+
+    Patient patient = new Patient();
+    patient.addGeneralPractitioner(agentUserWho);
+    String responseContentLocation =
+        String.format(
+            "%s/fhir/%s/%s/_history/hid-1",
+            FHIR_SERVER_BASE_URL, ResourceType.Patient.name(), "test-patient-id-1");
+    AuditEventHelper auditEventHelper =
+        createTestInstance(patient, null, responseContentLocation, RestOperationTypeEnum.CREATE);
+
+    auditEventHelper.processAuditEvents();
+
+    verify(auditFhirClientMock).postResource(any());
+  }
+
+  @Test
+  public void testProcessAuditEventsSwallowsErrorResponse() throws IOException {
+    HttpResponse errorResponse = Mockito.mock(HttpResponse.class, Answers.RETURNS_DEEP_STUBS);
+    when(errorResponse.getStatusLine().getStatusCode()).thenReturn(500);
+    when(errorResponse.getEntity()).thenReturn(null);
+    when(auditFhirClientMock.postResource(any())).thenReturn(errorResponse);
+
+    Patient patient = new Patient();
+    patient.addGeneralPractitioner(agentUserWho);
+    String responseContentLocation =
+        String.format(
+            "%s/fhir/%s/%s/_history/hid-1",
+            FHIR_SERVER_BASE_URL, ResourceType.Patient.name(), "test-patient-id-1");
+    AuditEventHelper auditEventHelper =
+        createTestInstance(patient, null, responseContentLocation, RestOperationTypeEnum.CREATE);
+
+    auditEventHelper.processAuditEvents();
+
+    verify(auditFhirClientMock).postResource(any());
+  }
+
   private AuditEventHelper createTestInstance(
       @Nullable IBaseResource payload,
       @Nullable IBaseResource response,
@@ -991,7 +1040,8 @@ public class AuditEventHelperTest {
         agentUserWho,
         decodedJWT,
         new Date(),
-        fhirClientMock,
+        FHIR_SERVER_BASE_URL,
+        auditFhirClientMock,
         fhirContext,
         Set.of(
             AuditEvent.AuditEventAction.C.toCode(),

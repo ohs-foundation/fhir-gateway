@@ -1,0 +1,63 @@
+#
+# Copyright 2021-2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# A Gateway with TWO FHIR servers: the clinical store it proxies, and a separate
+# store that AuditEvents are written to. Use this to verify that audit and
+# clinical data really are detached.
+#
+#   cp docker/env.sample docker/.env   # once; see docker/README.md
+#   docker compose -f docker/detached-audit-compose.yaml up
+#
+# Clinical store: http://localhost:8099/fhir   (proxied; AuditEvent count must stay flat)
+# Audit store:    http://localhost:8098/fhir   (AuditEvent count must rise)
+#
+# Note both stores are plain http here. That is accepted only because PROXY_TO is
+# also plain http; the Gateway refuses an http audit store when PROXY_TO is https.
+
+version: "3.0"
+
+services:
+  fhir-proxy:
+    image: us-docker.pkg.dev/fhir-proxy-build/stable/fhir-gateway:${BUILD_ID:-latest}
+    environment:
+    - TOKEN_ISSUER
+    - PROXY_TO
+    - BACKEND_TYPE
+    - ACCESS_CHECKER
+    - RUN_MODE
+    - ALLOWED_QUERIES_FILE
+    - AUDIT_EVENT_ACTIONS_CONFIG=${AUDIT_EVENT_ACTIONS_CONFIG:-CRUDE}
+    - AUDIT_EVENT_SINK_URL=${AUDIT_EVENT_SINK_URL:-http://localhost:8098/fhir}
+    - AUDIT_EVENT_SINK_AUTH_TYPE=${AUDIT_EVENT_SINK_AUTH_TYPE:-none}
+    network_mode: "host"
+    healthcheck:
+      # As hapi-server does not support curl, we check here that the
+      # hapi-server is ready to accept requests
+      test: curl --fail http://localhost:8099/fhir/metadata > /dev/null
+      start_period: 35s
+      interval: 10s
+      retries: 5
+      timeout: 10s
+
+  hapi-server:
+    image: us-docker.pkg.dev/fhir-proxy-build/stable/hapi-synthea:small
+    ports:
+    - "8099:8080"
+
+  hapi-audit-server:
+    image: us-docker.pkg.dev/fhir-proxy-build/stable/hapi-synthea:small
+    ports:
+    - "8098:8080"

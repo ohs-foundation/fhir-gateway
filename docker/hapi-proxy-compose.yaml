@@ -1,5 +1,5 @@
 #
-# Copyright 2021-2025 Google LLC
+# Copyright 2021-2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,8 @@
 
 # This is for easy creation and setup of a FHIR Proxy and HAPI FHIR Server
 #
-# The relevant environment variables are (see `.env` file for default values):
+# The relevant environment variables are (see `env.sample` for default values;
+# copy it to `.env` first: `cp docker/env.sample docker/.env`):
 #
 # TOKEN_ISSUER: URL of the Identity Provider server;
 #  default: "http://localhost:9080/auth/realms/test"
@@ -44,6 +45,8 @@ services:
     - RUN_MODE
     - ALLOWED_QUERIES_FILE
     - AUDIT_EVENT_ACTIONS_CONFIG
+    - AUDIT_EVENT_SINK_URL
+    - AUDIT_EVENT_SINK_AUTH_TYPE
     network_mode: "host"
     healthcheck:
       # As hapi-server does not support curl, we check here that the

@@ -27,9 +27,11 @@ There are three components involved here which are all combined in
   image to configure a realm for the `list` access-checker.
 
 You can change the configuration parameters by changing environment variables
-passed to the docker images. By default, the values in [`.env`](.env) is used.
-To run all above components:
+passed to the docker images. These are read from a `.env` file in this
+directory, which is not under version control; create it from the defaults in
+[`env.sample`](env.sample) first. To run all above components:
 
 ```shell
+cp env.sample .env
 docker-compose -f config-compose.yaml up
 ```
