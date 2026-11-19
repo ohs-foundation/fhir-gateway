@@ -79,18 +79,9 @@ sh kcadm.sh update events/config -r ${REALM} \
 # app developed by the FHIR SDK: https://github.com/google/android-fhir/
 CID=$(sh kcadm.sh create clients -r ${REALM} -s clientId=my-fhir-client \
   -s publicClient=true -s directAccessGrantsEnabled=true \
+  -s defaultClientScopes='["profile"]' \
   -s redirectUris='["com.google.fhir.examples.demo:/oauth2redirect"]' -i)
 echo "Created the new 'my-fhir-client' client ${CID}"
-
-# TODO remove the group setup after all proxy uses are upgraded.
-# Create a group which will be returned in `group` claim of issued tokens.
-sh kcadm.sh create groups -r ${REALM} -s name=fhirUser
-
-# Add the protocol-mapper for adding `group` claim.
-sh kcadm.sh create -r ${REALM} clients/${CID}/protocol-mappers/models/ \
-  -s name=group-fhir  -s protocolMapper=oidc-group-membership-mapper \
-  -s protocol=openid-connect \
-  -s config='{"full.path":"false","id.token.claim":"true","access.token.claim":"true","claim.name":"group","userinfo.token.claim":"true"}'
 
 # Create a protocol-mapper for `patient_list` user attribute.
 sh kcadm.sh create -r ${REALM} clients/${CID}/protocol-mappers/models/ \
@@ -100,7 +91,7 @@ sh kcadm.sh create -r ${REALM} clients/${CID}/protocol-mappers/models/ \
 
 # Create the test user; set its password, group, etc.
 sh kcadm.sh create users -r ${REALM} -s username=${TEST_USER} \
-  -s groups='["fhirUser"]' -s enabled=true \
+  -s enabled=true \
   -s attributes='{"patient_list":"patient-list-example"}' \
   -s credentials='[{"type":"password","value":"'${TEST_PASS}'","temporary":false}]'
 
@@ -129,7 +120,7 @@ echo "Created the new 'growth_chart' client ${SCID}"
 
 # Create a new user in this realm with the same user credentials as before.
 sh kcadm.sh create users -r ${SMART_REALM} -s username=${TEST_USER} \
-  -s groups='["fhirUser"]' -s enabled=true \
+  -s enabled=true \
   -s attributes='{"resourceId":"'${SMART_PATIENT_ID}'"}' \
   -s credentials='[{"type":"password","value":"'${TEST_PASS}'","temporary":false}]'
 
