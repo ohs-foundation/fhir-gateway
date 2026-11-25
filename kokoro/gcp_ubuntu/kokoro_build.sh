@@ -38,8 +38,20 @@ function setup() {
   # Update gcloud components
   gcloud components update --quiet
 
-  # Configure sibling-container Docker builds and localhost port forwarding on Kokoro Instances (RBE).
+  # On Kokoro Instances (RBE), builds execute inside a primary toolchain
+  # container using sibling containers via the host VM's Docker daemon
+  # (indicated by KOKORO_HOST_ROOT_DIR being set). Perform two RBE-specific
+  # adjustments here so ./e2e-test/e2e.sh works unchanged:
   if [[ -n "${KOKORO_HOST_ROOT_DIR:-}" ]]; then
+    # 1. Trust the RBE outbound network-monitoring TLS proxy inside
+    #    `docker build`. RBE workers mount the proxy CA bundle and Java
+    #    truststore at /var/cache/proxy.crt and /var/cache/proxy.crt.jks,
+    #    which are available in the primary container but not automatically
+    #    inside BuildKit `docker build` stages. Layer them onto the local
+    #    Maven build base image and use classic Docker builds
+    #    (DOCKER_BUILDKIT=0) so `npm` and `mvn` in the `build` stage trust
+    #    the proxy. The final runtime stage (`eclipse-temurin:17-jdk-focal`)
+    #    only copies the built JAR and does not include proxy certs.
     export DOCKER_BUILDKIT=0
     if [[ -f /var/cache/proxy.crt ]]; then
       docker pull maven:3.8.7-eclipse-temurin-17-focal
@@ -58,11 +70,18 @@ ENV NODE_EXTRA_CA_CERTS=/var/cache/proxy.crt
 ENV NPM_CONFIG_CAFILE=/var/cache/proxy.crt
 ENV JAVA_TOOL_OPTIONS="-Djavax.net.ssl.trustStore=/var/cache/proxy.crt.jks"
 EOF
-      DOCKER_BUILDKIT=0 docker build -t maven:3.8.7-eclipse-temurin-17-focal "${proxy_dir}"
+      DOCKER_BUILDKIT=0 docker build \
+        -t maven:3.8.7-eclipse-temurin-17-focal "${proxy_dir}"
       rm -rf "${proxy_dir}"
     fi
 
-    python3 -c "import requests" 2>/dev/null || pip3 install --no-cache-dir requests
+    # 2. Ensure `requests` is available for e2e-test/e2e.py and forward
+    #    localhost ports 8080 (fhir-proxy), 8099 (hapi-server), and 9080
+    #    (keycloak) to the host Docker bridge gateway. Because docker-compose
+    #    launches sibling containers on the host VM, their published ports
+    #    bind on the host rather than the primary container's loopback.
+    python3 -c "import requests" 2>/dev/null \
+      || pip3 install --no-cache-dir requests
     sudo apt-get update && sudo apt-get install -y socat
     local host_ip
     host_ip="$(ip route show default | awk '/default/ {print $3; exit}')"
@@ -70,7 +89,8 @@ EOF
       export NO_PROXY="localhost,127.0.0.1,${host_ip}"
       export no_proxy="${NO_PROXY}"
       for port in 8080 8099 9080; do
-        socat "TCP-LISTEN:${port},fork,reuseaddr,bind=127.0.0.1" "TCP:${host_ip}:${port}" &
+        socat "TCP-LISTEN:${port},fork,reuseaddr,bind=127.0.0.1" \
+          "TCP:${host_ip}:${port}" &
       done
     fi
   fi
